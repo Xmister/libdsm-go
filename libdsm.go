@@ -136,11 +136,12 @@ func (f *smbFile) Stat() (os.FileInfo, error) {
 }
 
 func (f *smbFile) Seek(offset int64, whence int) (res int64, err error){
+	realOffset := offset
 	if whence == io.SeekEnd {
-		res = int64(C.smb_fseek_wrapper(f.smb.session, f.fd, C.longlong(f.Size()), C.int(io.SeekStart)))
-	} else {
-		res = int64(C.smb_fseek_wrapper(f.smb.session, f.fd, C.longlong(offset), C.int(whence)))
+		realOffset = f.Size()+offset
+		whence = io.SeekStart
 	}
+	res = int64(C.smb_fseek_wrapper(f.smb.session, f.fd, C.longlong(realOffset), C.int(whence)))
 	if res < 0 {
 		err = errors.New("seek error")
 	}
