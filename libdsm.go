@@ -136,7 +136,11 @@ func (f *smbFile) Stat() (os.FileInfo, error) {
 }
 
 func (f *smbFile) Seek(offset int64, whence int) (res int64, err error){
-	res = int64(C.smb_fseek_wrapper(f.smb.session, f.fd, C.longlong(offset), C.int(whence)))
+	if whence == io.SeekEnd {
+		res = int64(C.smb_fseek_wrapper(f.smb.session, f.fd, C.longlong(f.Size()), C.int(io.SeekStart)))
+	} else {
+		res = int64(C.smb_fseek_wrapper(f.smb.session, f.fd, C.longlong(offset), C.int(whence)))
+	}
 	if res < 0 {
 		err = errors.New("seek error")
 	}
@@ -168,7 +172,7 @@ func (f *smbFile) Readdir(count int) (infos []os.FileInfo, err error) {
 func (f *smbFile) Write(p []byte) (n int, err error) {
 	n=int(C.smb_fwrite_wrapper(f.smb.session, f.fd, unsafe.Pointer(&p[0]), C.ulong(len(p))));
 	if n <= 0 {
-		err = errors.New("Write error")
+		err = errors.New("write error")
 	}
 	return
 }
