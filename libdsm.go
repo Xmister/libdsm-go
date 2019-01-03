@@ -29,6 +29,11 @@ ssize_t smb_fread_wrapper(smb_session* s, smb_fd f, void* p, unsigned long buf_s
 	return smb_fread(s, f, p, buf_size);
 }
 
+ssize_t smb_fwrite_wrapper(smb_session* s, smb_fd f, void* p, unsigned long buf_size)
+{
+	return smb_fwrite(s, f, p, buf_size);
+}
+
 ssize_t smb_fseek_wrapper(smb_session* s, smb_fd f, long long offset, int whence)
 {
 	return smb_fseek(s, f, offset, whence);
@@ -156,6 +161,14 @@ func (f *smbFile) Readdir(count int) (infos []os.FileInfo, err error) {
 	}
 	if len(infos) < 1 {
 		err = io.EOF
+	}
+	return
+}
+
+func (f *smbFile) Write(p []byte) (n int, err error) {
+	n=int(C.smb_fwrite_wrapper(f.smb.session, f.fd, unsafe.Pointer(&p[0]), C.ulong(len(p))));
+	if n <= 0 {
+		err = errors.New("Write error")
 	}
 	return
 }
