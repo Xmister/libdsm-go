@@ -77,7 +77,12 @@ func (s *Smb) Connect(host string, share string, user string, password string) e
 		if ips, err := net.LookupIP(host); err != nil {
 			return err
 		} else {
-			ip = ips[0].String()
+			for _, result := range ips {
+				if result.To4() != nil {
+					ip = result.To4().String()
+					break
+				}
+			}
 		}
 	} else {
 		ip = goIP.String()
