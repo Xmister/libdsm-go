@@ -101,8 +101,11 @@ func (s *Smb) Connect(host string, share string, user string, password string) e
 }
 
 func (s* Smb) Disconnect() {
-	C.smb_tree_disconnect(s.session, s.tid);
-	C.smb_session_destroy(s.session);
+	if s.session != nil {
+		C.smb_tree_disconnect(s.session, s.tid);
+		C.smb_session_destroy(s.session);
+		s.session = nil
+	}
 }
 
 
