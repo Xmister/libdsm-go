@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+	"sync"
 )
 /*
 #include <arpa/inet.h>
@@ -44,6 +45,7 @@ import "C"
 type Smb struct {
 	session *C.smb_session
 	tid C.smb_tid
+	mutex sync.Mutex
 }
 
 type cSmbStat struct {
@@ -101,6 +103,8 @@ func (s *Smb) Connect(host string, share string, user string, password string) e
 }
 
 func (s* Smb) Disconnect() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	if s.session != nil {
 		C.smb_tree_disconnect(s.session, s.tid);
 		C.smb_session_destroy(s.session);
@@ -110,6 +114,8 @@ func (s* Smb) Disconnect() {
 
 
 func (s* Smb) OpenFile(path string, mode int) (*smbFile, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	var smbMode C.uint32_t
 	switch mode {
 	case os.O_RDONLY:
@@ -132,6 +138,11 @@ func (s* Smb) OpenFile(path string, mode int) (*smbFile, error) {
 }
 
 func (f *smbFile) Read(p []byte) (n int, err error) {
+	f.smb.mutex.Lock()
+	defer f.smb.mutex.Unlock()
+	if f.fd == C.uint(0) || f.smb.session == nil {
+		return 0, io.EOF
+	}
 	n=int(C.smb_fread_wrapper(f.smb.session, f.fd, unsafe.Pointer(&p[0]), C.ulong(len(p))));
 	if n <= 0 {
 		err=io.EOF
@@ -144,6 +155,11 @@ func (f *smbFile) Stat() (os.FileInfo, error) {
 }
 
 func (f *smbFile) Seek(offset int64, whence int) (res int64, err error){
+	f.smb.mutex.Lock()
+	defer f.smb.mutex.Unlock()
+	if f.fd == C.uint(0) || f.smb.session == nil {
+		return 0, io.EOF
+	}
 	realOffset := offset
 	if whence == io.SeekEnd {
 		realOffset = f.Size()+offset
@@ -157,6 +173,8 @@ func (f *smbFile) Seek(offset int64, whence int) (res int64, err error){
 }
 
 func (f *smbFile) Readdir(count int) (infos []os.FileInfo, err error) {
+	f.smb.mutex.Lock()
+	defer f.smb.mutex.Unlock()
 	findPath := strings.Replace(f.path,"/","\\", -1)+"\\*"
 	list := C.smb_find(f.smb.session, f.smb.tid, C.CString(findPath))
 	defer C.smb_stat_list_destroy(list)
@@ -179,6 +197,11 @@ func (f *smbFile) Readdir(count int) (infos []os.FileInfo, err error) {
 }
 
 func (f *smbFile) Write(p []byte) (n int, err error) {
+	f.smb.mutex.Lock()
+	defer f.smb.mutex.Unlock()
+	if f.fd == C.uint(0) || f.smb.session == nil {
+		return 0, io.EOF
+	}
 	n=int(C.smb_fwrite_wrapper(f.smb.session, f.fd, unsafe.Pointer(&p[0]), C.ulong(len(p))));
 	if n <= 0 {
 		err = errors.New("write error")
@@ -187,7 +210,13 @@ func (f *smbFile) Write(p []byte) (n int, err error) {
 }
 
 func (f *smbFile) Close() error {
+	f.smb.mutex.Lock()
+	defer f.smb.mutex.Unlock()
+	if f.fd == C.uint(0) || f.smb.session == nil {
+		return nil
+	}
 	C.smb_fclose(f.smb.session, f.fd);
+	f.fd = C.uint(0)
 	return nil
 }
 
