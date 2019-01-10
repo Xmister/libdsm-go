@@ -116,6 +116,9 @@ func (s* Smb) Disconnect() {
 func (s* Smb) OpenFile(path string, mode int) (*smbFile, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+	if s.session == nil {
+		return nil, errors.New("opening file on closed session")
+	}
 	var smbMode C.uint32_t
 	switch mode {
 	case os.O_RDONLY:
