@@ -90,26 +90,35 @@ func (s *Smb) Connect(host string, share string, user string, password string) e
 		ip = goIP.String()
 	}
 	if code:=C.smb_session_connect(s.session, C.CString(host), C.get_addr(C.CString(ip)), C.SMB_TRANSPORT_TCP); code != 0 {
+		s.disconnect()
 		return errors.New(fmt.Sprintf("unable to connect to %s, code %d", host, int(code)))
 	}
 	C.smb_session_set_creds(s.session, C.CString(host), C.CString(user), C.CString(password))
 	if code:=C.smb_session_login(s.session); code != 0 {
+		s.disconnect()
 		return errors.New(fmt.Sprintf("wrong username or password, code %d", int(code)))
 	}
 	if code:=C.smb_tree_connect(s.session, C.CString(share), &s.tid); code != 0 || s.tid == 0 {
+		s.disconnect()
 		return errors.New(fmt.Sprintf("cannot access share, code %d", int(code)))
 	}
 	return nil
 }
 
-func (s* Smb) Disconnect() {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+func (s *Smb) disconnect() {
 	if s.session != nil {
-		C.smb_tree_disconnect(s.session, s.tid);
+		if s.tid != 0 {
+			C.smb_tree_disconnect(s.session, s.tid);
+		}
 		C.smb_session_destroy(s.session);
 		s.session = nil
 	}
+}
+
+func (s* Smb) Disconnect() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.disconnect()
 }
 
 
