@@ -1,6 +1,7 @@
 package libdsm
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -39,6 +40,11 @@ ssize_t smb_fseek_wrapper(smb_session* s, smb_fd f, long long offset, int whence
 {
 	return smb_fseek(s, f, offset, whence);
 }
+
+int netbios_ns_resolve_wrapper(netbios_ns *ns, const char *name, char type, void *addr)
+{
+	return netbios_ns_resolve(ns, name, type, addr);
+}
 */
 import "C"
 
@@ -67,6 +73,20 @@ type smbFile struct {
 	*smbStat
 }
 
+func NetbiosLookup(host string) (out string, err error) {
+	n := C.netbios_ns_new()
+	defer C.netbios_ns_destroy(n)
+	var caddr uint32
+	if res := C.netbios_ns_resolve_wrapper(n, C.CString(host), C.NETBIOS_FILESERVER, unsafe.Pointer(&caddr)); res == 0 {
+		ip := make(net.IP, 4)
+		binary.LittleEndian.PutUint32(ip, caddr)
+		out = ip.String()
+	} else {
+		err = fmt.Errorf("netbios lookup failed, errorcode %d", res)
+	}
+	return
+}
+
 func NewSmb() *Smb {
 	return &Smb{
 		session: C.smb_session_new(),
@@ -89,6 +109,8 @@ func (s *Smb) Connect(host string, share string, user string, password string) e
 	} else {
 		ip = goIP.String()
 	}
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	if code:=C.smb_session_connect(s.session, C.CString(host), C.get_addr(C.CString(ip)), C.SMB_TRANSPORT_TCP); code != 0 {
 		s.disconnect()
 		return errors.New(fmt.Sprintf("unable to connect to %s, code %d", host, int(code)))
