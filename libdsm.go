@@ -17,7 +17,7 @@ import (
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <bdsm.h>
+#include <bdsm/bdsm.h>
 
 uint32_t get_addr(char* host)
 {
